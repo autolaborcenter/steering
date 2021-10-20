@@ -34,6 +34,11 @@ pub fn spawn() -> Receiver<(Instant, Event)> {
                     EventType::*,
                 };
                 match ty {
+                    Disconnected => {
+                        event.speed = 0.0;
+                        event.direction = 0.0;
+                        let _ = sender.send((time, event)).await;
+                    }
                     AxisChanged(LeftStickX, value, _) => {
                         event.direction = value;
                         let _ = sender.send((time, event)).await;
