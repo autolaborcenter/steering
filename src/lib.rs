@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Event {
-    gear: i8,
-    speed: f32,
-    direction: f32,
+    pub gear: i8,
+    pub speed: f32,
+    pub direction: f32,
 }
 
 pub fn spawn() -> Receiver<(Instant, Event)> {
