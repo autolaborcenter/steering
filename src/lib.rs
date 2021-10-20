@@ -11,15 +11,9 @@ pub struct Event {
     direction: f32,
 }
 
-macro_rules! send_blocking {
-    ($msg:expr => $sender:expr) => {{
-        let _ = task::block_on(async { $sender.send($msg).await });
-    }};
-}
-
 pub fn spawn() -> Receiver<(Instant, Event)> {
     let (sender, receiver) = unbounded();
-    task::spawn_blocking(move || {
+    task::spawn(async move {
         let mut event = Event {
             gear: 1,
             speed: 0.0,
@@ -42,17 +36,17 @@ pub fn spawn() -> Receiver<(Instant, Event)> {
                 match ty {
                     AxisChanged(LeftStickX, value, _) => {
                         event.direction = value;
-                        send_blocking!((time, event) => sender);
+                        let _ = sender.send((time, event)).await;
                     }
                     ButtonChanged(RightTrigger2, value, _) => {
                         event.speed = value;
-                        send_blocking!((time, event) => sender);
+                        let _ = sender.send((time, event)).await;
                     }
                     ButtonPressed(North, _) => {
                         match event.gear {
                             1..=5 => {
                                 event.gear = -1;
-                                send_blocking!((time, event) => sender);
+                                let _ = sender.send((time, event)).await;
                             }
                             _ => {}
                         };
@@ -61,7 +55,7 @@ pub fn spawn() -> Receiver<(Instant, Event)> {
                         match event.gear {
                             -2 | -1 => {
                                 event.gear = 1;
-                                send_blocking!((time, event) => sender);
+                                let _ = sender.send((time, event)).await;
                             }
                             _ => {}
                         };
@@ -77,7 +71,7 @@ pub fn spawn() -> Receiver<(Instant, Event)> {
                         };
                         if next != event.gear {
                             event.gear = next;
-                            send_blocking!((time, event) => sender);
+                            let _ = sender.send((time, event)).await;
                         }
                     }
                     ButtonReleased(South, _) => {
@@ -91,13 +85,13 @@ pub fn spawn() -> Receiver<(Instant, Event)> {
                         };
                         if next != event.gear {
                             event.gear = next;
-                            send_blocking!((time, event) => sender);
+                            let _ = sender.send((time, event)).await;
                         }
                     }
                     _ => {}
                 }
             }
-            task::block_on(async { task::sleep(Duration::from_millis(1)).await });
+            task::sleep(Duration::from_millis(1)).await;
         }
     });
     receiver
