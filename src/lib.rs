@@ -11,9 +11,12 @@ pub struct Event {
     pub direction: f32,
 }
 
-pub fn spawn() -> Receiver<(Instant, Event)> {
+pub fn spawn(frequency: u16) -> Receiver<(Instant, Event)> {
     let (sender, receiver) = unbounded();
     task::spawn(async move {
+        let max_sleep = Duration::from_secs(1) / frequency as u32;
+        let mut sleep = Duration::from_millis(1);
+        let mut sync = (Instant::now(), false);
         let mut event = Event {
             gear: 1,
             speed: 0.0,
@@ -21,83 +24,92 @@ pub fn spawn() -> Receiver<(Instant, Event)> {
         };
         let mut gilrs = gilrs::Gilrs::new().unwrap();
         loop {
-            while let Some(gilrs::Event {
-                id: _,
-                event: ty,
-                time: _,
-            }) = gilrs.next_event()
-            {
-                let time = Instant::now();
-                use gilrs::{
-                    Axis::LeftStickX,
-                    Button::{North, RightTrigger2, South, West},
-                    EventType::*,
-                };
-                match ty {
-                    Disconnected => {
-                        event.speed = 0.0;
-                        event.direction = 0.0;
-                        let _ = sender.send((time, event)).await;
-                    }
-                    AxisChanged(LeftStickX, value, _) => {
-                        event.direction = value;
-                        let _ = sender.send((time, event)).await;
-                    }
-                    ButtonChanged(RightTrigger2, value, _) => {
-                        event.speed = value;
-                        let _ = sender.send((time, event)).await;
-                    }
-                    ButtonPressed(North, _) => {
-                        match event.gear {
+            match gilrs.next_event() {
+                Some(gilrs::Event {
+                    id: _,
+                    event: ty,
+                    time: _,
+                }) => {
+                    let time = Instant::now();
+                    use gilrs::{
+                        Axis::LeftStickX,
+                        Button::{North, RightTrigger2, South, West},
+                        EventType::*,
+                    };
+                    let modified = match ty {
+                        Disconnected => {
+                            event.speed = 0.0;
+                            event.direction = 0.0;
+                            true
+                        }
+                        AxisChanged(LeftStickX, value, _) => {
+                            event.direction = value;
+                            true
+                        }
+                        ButtonChanged(RightTrigger2, value, _) => {
+                            event.speed = value;
+                            true
+                        }
+                        ButtonPressed(North, _) => match event.gear {
                             1..=5 => {
                                 event.gear = -1;
-                                let _ = sender.send((time, event)).await;
+                                true
                             }
-                            _ => {}
-                        };
-                    }
-                    ButtonReleased(North, _) => {
-                        match event.gear {
+                            _ => false,
+                        },
+                        ButtonReleased(North, _) => match event.gear {
                             -2 | -1 => {
                                 event.gear = 1;
-                                let _ = sender.send((time, event)).await;
+                                true
                             }
-                            _ => {}
-                        };
+                            _ => false,
+                        },
+                        ButtonReleased(West, _) => event.gear_up(),
+                        ButtonReleased(South, _) => event.gear_down(),
+                        _ => false,
+                    };
+                    if modified {
+                        sleep = Duration::from_millis(1);
                     }
-                    ButtonReleased(West, _) => {
-                        let next = match event.gear {
-                            -1 => -2,
-                            1 => 2,
-                            2 => 3,
-                            3 => 4,
-                            4 => 5,
-                            _ => continue,
-                        };
-                        if next != event.gear {
-                            event.gear = next;
-                            let _ = sender.send((time, event)).await;
-                        }
+                    if (modified || sync.1) && time >= sync.0 + max_sleep {
+                        sync = (time, false);
+                        let _ = sender.send((time, event)).await;
+                    } else {
+                        sync.1 |= modified;
                     }
-                    ButtonReleased(South, _) => {
-                        let next = match event.gear {
-                            -2 => -1,
-                            2 => 1,
-                            3 => 2,
-                            4 => 3,
-                            5 => 4,
-                            _ => continue,
-                        };
-                        if next != event.gear {
-                            event.gear = next;
-                            let _ = sender.send((time, event)).await;
-                        }
-                    }
-                    _ => {}
+                }
+                None => {
+                    task::sleep(sleep).await;
+                    sleep = Duration::max(sleep + Duration::from_millis(1), max_sleep);
                 }
             }
-            task::sleep(Duration::from_millis(1)).await;
         }
     });
     receiver
+}
+
+impl Event {
+    fn gear_up(&mut self) -> bool {
+        self.gear = match self.gear {
+            -1 => -2,
+            1 => 2,
+            2 => 3,
+            3 => 4,
+            4 => 5,
+            _ => return false,
+        };
+        true
+    }
+
+    fn gear_down(&mut self) -> bool {
+        self.gear = match self.gear {
+            -2 => -1,
+            2 => 1,
+            3 => 2,
+            4 => 3,
+            5 => 4,
+            _ => return false,
+        };
+        true
+    }
 }
