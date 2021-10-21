@@ -73,13 +73,19 @@ pub fn spawn(frequency: u16) -> Receiver<(Instant, Event)> {
                     }
                     if (modified || sync.1) && time >= sync.0 + max_sleep {
                         sync = (time, false);
+                        #[cfg(windows)]
                         let _ = sender.send((time, event)).await;
+                        #[cfg(unix)]
+                        let _ = task::block_on(async { sender.send((time, event)).await });
                     } else {
                         sync.1 |= modified;
                     }
                 }
                 None => {
+                    #[cfg(windows)]
                     task::sleep(sleep).await;
+                    #[cfg(unix)]
+                    std::thread::sleep(sleep);
                     sleep = Duration::max(sleep + Duration::from_millis(1), max_sleep);
                 }
             }
