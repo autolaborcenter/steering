@@ -2,6 +2,7 @@ use async_std::{
     channel::{unbounded, Receiver},
     task,
 };
+use gilrs::EventType;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug)]
@@ -24,70 +25,35 @@ pub fn spawn(frequency: u16) -> Receiver<(Instant, Event)> {
         };
         let mut gilrs = gilrs::Gilrs::new().unwrap();
         loop {
-            match gilrs.next_event() {
+            let modified = match gilrs.next_event() {
                 Some(gilrs::Event {
                     id: _,
                     event: ty,
                     time: _,
-                }) => {
-                    let time = Instant::now();
-                    use gilrs::{
-                        Axis::LeftStickX,
-                        Button::{North, RightTrigger2, South, West},
-                        EventType::*,
-                    };
-                    let modified = match ty {
-                        Disconnected => {
-                            event.speed = 0.0;
-                            event.direction = 0.0;
-                            true
-                        }
-                        AxisChanged(LeftStickX, value, _) => {
-                            event.direction = value;
-                            true
-                        }
-                        ButtonChanged(RightTrigger2, value, _) => {
-                            event.speed = value;
-                            true
-                        }
-                        ButtonPressed(North, _) => match event.gear {
-                            1..=5 => {
-                                event.gear = -1;
-                                true
-                            }
-                            _ => false,
-                        },
-                        ButtonReleased(North, _) => match event.gear {
-                            -2 | -1 => {
-                                event.gear = 1;
-                                true
-                            }
-                            _ => false,
-                        },
-                        ButtonReleased(West, _) => event.gear_up(),
-                        ButtonReleased(South, _) => event.gear_down(),
-                        _ => false,
-                    };
-                    if modified {
-                        sleep = Duration::from_millis(1);
-                    }
-                    if (modified || sync.1) && time >= sync.0 + max_sleep {
-                        sync = (time, false);
-                        #[cfg(windows)]
-                        let _ = sender.send((time, event)).await;
-                        #[cfg(unix)]
-                        let _ = task::block_on(async { sender.send((time, event)).await });
-                    } else {
-                        sync.1 |= modified;
-                    }
-                }
+                }) => event.update(ty),
                 None => {
-                    #[cfg(windows)]
-                    task::sleep(sleep).await;
-                    #[cfg(unix)]
-                    std::thread::sleep(sleep);
-                    sleep = Duration::max(sleep + Duration::from_millis(1), max_sleep);
+                    if !sync.1 {
+                        #[cfg(windows)]
+                        task::sleep(sleep).await;
+                        #[cfg(unix)]
+                        std::thread::sleep(sleep);
+                        sleep = Duration::max(sleep + Duration::from_millis(1), max_sleep);
+                    }
+                    false
                 }
+            };
+            if modified {
+                sleep = Duration::from_millis(1);
+            }
+            let time = Instant::now();
+            if (modified || sync.1) && time >= sync.0 + max_sleep {
+                sync = (time, false);
+                #[cfg(windows)]
+                let _ = sender.send((time, event)).await;
+                #[cfg(unix)]
+                let _ = task::block_on(async { sender.send((time, event)).await });
+            } else {
+                sync.1 |= modified;
             }
         }
     });
@@ -95,6 +61,56 @@ pub fn spawn(frequency: u16) -> Receiver<(Instant, Event)> {
 }
 
 impl Event {
+    fn update(&mut self, ty: EventType) -> bool {
+        use gilrs::{
+            Axis::LeftStickX,
+            Button::{North, South, West},
+            EventType::*,
+        };
+        match ty {
+            Disconnected => {
+                self.speed = 0.0;
+                self.direction = 0.0;
+                true
+            }
+            AxisChanged(LeftStickX, value, _) => {
+                self.direction = value;
+                true
+            }
+            #[cfg(windows)]
+            ButtonChanged(gilrs::Button::RightTrigger2, value, _) => {
+                self.speed = value;
+                true
+            }
+            #[cfg(unix)]
+            AxisChanged(gilrs::Axis::RightZ, value, _) => {
+                self.speed = (value + 1.0) / 2.0;
+                true
+            }
+            ButtonPressed(North, _) => match self.gear {
+                1..=5 => {
+                    self.gear = -1;
+                    true
+                }
+                _ => false,
+            },
+            ButtonReleased(North, _) => match self.gear {
+                -2 | -1 => {
+                    self.gear = 1;
+                    true
+                }
+                _ => false,
+            },
+            ButtonReleased(West, _) => self.gear_up(),
+            ButtonReleased(South, _) => self.gear_down(),
+            _ => {
+                #[cfg(test)]
+                println!("unspecific: {:?}", ty);
+                false
+            }
+        }
+    }
+
     fn gear_up(&mut self) -> bool {
         self.gear = match self.gear {
             -1 => -2,
@@ -118,4 +134,15 @@ impl Event {
         };
         true
     }
+}
+
+#[test]
+fn try_it() {
+    let events = spawn(100);
+    task::block_on(async move {
+        while let Ok((_, event)) = events.recv().await {
+            println!("{:?}", event);
+        }
+        println!("!");
+    });
 }
