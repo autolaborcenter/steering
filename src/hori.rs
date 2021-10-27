@@ -1,53 +1,42 @@
-﻿use gilrs::EventType;
+﻿use super::{Context, Status, Steering};
+use gilrs::{Axis, Button};
 
-impl super::Event {
-    pub fn update(&mut self, ty: EventType) -> bool {
-        use gilrs::{
-            Axis::LeftStickX,
-            Button::{North, South, West},
-            EventType::*,
-        };
-        match ty {
-            Disconnected => {
-                self.speed = 0.0;
-                self.direction = 0.0;
-                true
-            }
-            AxisChanged(LeftStickX, value, _) => {
-                self.direction = value;
-                true
-            }
-            #[cfg(windows)]
-            ButtonChanged(gilrs::Button::RightTrigger2, value, _) => {
-                self.speed = value;
-                true
-            }
-            #[cfg(unix)]
-            AxisChanged(gilrs::Axis::RightZ, value, _) => {
-                self.speed = (value + 1.0) / 2.0;
-                true
-            }
-            ButtonPressed(North, _) => match self.gear {
-                1..=5 => {
-                    self.gear = -1;
-                    true
+pub struct Hori(Context, f32);
+
+impl Steering for Hori {
+    fn new() -> Self {
+        Self(Context::new(), 0.0)
+    }
+
+    fn status(&mut self) -> Status {
+        use gilrs::EventType::*;
+        while let Some(e) = self.0.handle_events() {
+            match e {
+                ButtonReleased(Button::West, _) => self.0.gear_up(),
+                ButtonReleased(Button::South, _) => self.0.gear_down(),
+                ButtonReleased(Button::North, _) => match self.0.level {
+                    1.. => self.0.level = -1,
+                    _ => self.0.level = 1,
+                },
+                #[cfg(windows)]
+                ButtonChanged(Button::RightTrigger2, value, _) => {
+                    self.1 = value;
                 }
-                _ => false,
-            },
-            ButtonReleased(North, _) => match self.gear {
-                -2 | -1 => {
-                    self.gear = 1;
-                    true
+                #[cfg(unix)]
+                ButtonChanged(Axis::RightZ, value, _) => {
+                    self.1 = value;
                 }
-                _ => false,
-            },
-            ButtonReleased(West, _) => self.gear_up(),
-            ButtonReleased(South, _) => self.gear_down(),
-            _ => {
-                #[cfg(test)]
-                println!("unspecific: {:?}", ty);
-                false
-            }
+
+                _ => {}
+            };
+        }
+        let (y, x) = self.0.active.map_or((0.0, 0.0), |id| {
+            (self.1, self.0.gilrs.gamepad(id).value(Axis::LeftStickX))
+        });
+        Status {
+            level: self.0.level,
+            x,
+            y,
         }
     }
 }

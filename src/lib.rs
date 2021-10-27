@@ -1,103 +1,96 @@
-use async_std::{
-    channel::{unbounded, Receiver},
-    task,
-};
-use std::time::{Duration, Instant};
+use gilrs::{EventType, GamepadId, Gilrs};
 
 #[cfg(feature = "hori")]
 mod hori;
 
-#[cfg(all(unix, feature = "g29"))]
+#[cfg(feature = "hori")]
+pub type Device = hori::Hori;
+
+#[cfg(feature = "xbox360")]
+mod xbox360;
+
+#[cfg(feature = "xbox360")]
+pub type Device = xbox360::XBox360;
+
+#[cfg(all(feature = "g29"))]
 mod g29;
 
+#[cfg(all(feature = "g29"))]
+pub type Device = g29::G29;
+
 #[derive(Clone, Copy, Debug)]
-pub struct Event {
-    pub gear: i8,
-    pub speed: f32,
-    pub direction: f32,
+pub struct Status {
+    pub level: i8,
+    pub x: f32,
+    pub y: f32,
 }
 
-pub fn spawn(frequency: u16) -> Receiver<(Instant, Event)> {
-    let (sender, receiver) = unbounded();
-    task::spawn(async move {
-        let max_sleep = Duration::from_secs(1) / frequency as u32;
-        let mut sleep = Duration::from_millis(1);
-        let mut sync = (Instant::now(), false);
-        let mut event = Event {
-            gear: 1,
-            speed: 0.0,
-            direction: 0.0,
-        };
-        let mut gilrs = gilrs::Gilrs::new().unwrap();
-        loop {
-            let modified = match gilrs.next_event() {
-                Some(gilrs::Event {
-                    id: _,
-                    event: ty,
-                    time: _,
-                }) => event.update(ty),
-                None => {
-                    if !sync.1 {
-                        #[cfg(windows)]
-                        task::sleep(sleep).await;
-                        #[cfg(unix)]
-                        std::thread::sleep(sleep);
-                        sleep = Duration::max(sleep + Duration::from_millis(1), max_sleep);
-                    }
-                    false
+pub trait Steering {
+    fn new() -> Self;
+    fn status(&mut self) -> Status;
+}
+
+struct Context {
+    gilrs: Gilrs,
+    active: Option<GamepadId>,
+    level: i8,
+}
+
+impl Context {
+    fn new() -> Self {
+        Self {
+            gilrs: Gilrs::new().unwrap(),
+            active: None,
+            level: 1,
+        }
+    }
+
+    fn handle_events(&mut self) -> Option<EventType> {
+        while let Some(e) = self.gilrs.next_event() {
+            use gilrs::ev::EventType::*;
+
+            if e.event == Disconnected {
+                if Some(e.id) == self.active {
+                    self.active = None;
                 }
-            };
-            if modified {
-                sleep = Duration::from_millis(1);
-            }
-            let time = Instant::now();
-            if (modified || sync.1) && time >= sync.0 + max_sleep {
-                sync = (time, false);
-                #[cfg(windows)]
-                let _ = sender.send((time, event)).await;
-                #[cfg(unix)]
-                let _ = task::block_on(async { sender.send((time, event)).await });
             } else {
-                sync.1 |= modified;
+                self.active = Some(e.id);
+                return Some(e.event);
             }
         }
-    });
-    receiver
-}
+        return None;
+    }
 
-impl Event {
-    fn gear_up(&mut self) -> bool {
-        self.gear = match self.gear {
+    fn gear_up(&mut self) {
+        self.level = match self.level {
             -1 => -2,
             1 => 2,
             2 => 3,
             3 => 4,
             4 => 5,
-            _ => return false,
+            _ => self.level,
         };
-        true
     }
 
-    fn gear_down(&mut self) -> bool {
-        self.gear = match self.gear {
+    fn gear_down(&mut self) {
+        self.level = match self.level {
             -2 => -1,
             2 => 1,
             3 => 2,
             4 => 3,
             5 => 4,
-            _ => return false,
+            _ => self.level,
         };
-        true
     }
 }
 
 #[test]
 fn try_it() {
-    let events = spawn(100);
-    task::block_on(async move {
-        while let Ok((_, event)) = events.recv().await {
-            println!("{:?}", event);
-        }
-        println!("!");
-    });
+    use std::{thread, time::Duration};
+
+    let mut device = Device::new();
+    loop {
+        println!("{:?}", device.status());
+        thread::sleep(Duration::from_millis(50));
+    }
 }

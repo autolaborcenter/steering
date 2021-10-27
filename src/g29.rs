@@ -1,54 +1,36 @@
-﻿use gilrs::{
-    ff::{BaseEffect, BaseEffectType, EffectBuilder, Replay, Ticks},
-    Axis::{LeftStickX, LeftZ},
-    Button::Unknown,
-    EventType::{self, *},
-    GamepadId, Gilrs,
-};
+﻿use super::{Context, Status, Steering};
+use gilrs::{Axis, Button};
 
-impl super::Event {
-    pub fn update(&mut self, ty: EventType) -> bool {
-        match ty {
-            Disconnected => {
-                self.speed = 0.0;
-                self.direction = 0.0;
-                true
-            }
-            AxisChanged(LeftStickX, value, _) => {
-                self.direction = value;
-                true
-            }
-            AxisChanged(LeftZ, value, _) => {
-                self.speed = (1.0 - value) / 2.0;
-                true
-            }
-            ButtonReleased(Unknown, code) => match code.into_u32() {
-                65827 => {
-                    self.gear = match self.gear {
-                        1..=5 => -1,
-                        _ => 1,
-                    };
-                    true
+pub struct G29(Context);
+
+impl Steering for G29 {
+    fn new() -> Self {
+        Self(Context::new())
+    }
+
+    fn status(&mut self) -> Status {
+        use gilrs::EventType::*;
+        while let Some(e) = self.0.handle_events() {
+            if let ButtonReleased(Button::Unknown, code) = e {
+                match code.into_u32() {
+                    65827 => match self.0.level {
+                        1.. => self.0.level = -1,
+                        _ => self.0.level = 1,
+                    },
+                    65828 => self.0.gear_up(),
+                    65829 => self.0.gear_down(),
+                    _ => {}
                 }
-                65828 => {
-                    self.gear_up();
-                    true
-                }
-                65829 => {
-                    self.gear_down();
-                    true
-                }
-                _n => {
-                    #[cfg(test)]
-                    println!("{}", _n);
-                    false
-                }
-            },
-            _ => {
-                #[cfg(test)]
-                println!("unspecific: {:?}", ty);
-                false
             }
+        }
+        let (y, x) = self.0.active.map_or((0.0, 0.0), |id| {
+            let gampad = self.0.gilrs.gamepad(id);
+            (gampad.value(Axis::LeftZ), gampad.value(Axis::LeftStickX))
+        });
+        Status {
+            level: self.0.level,
+            x,
+            y,
         }
     }
 }

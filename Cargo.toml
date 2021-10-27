@@ -6,11 +6,10 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 readme = "README.md"
 
 [dependencies]
-async-std = { version = "*", features = ["unstable"] }
 gilrs = "*"
-gilrs-core = { version = "*", optional = true }
 
 [features]
 default = ["hori"]
 hori = []
-g29 = ["gilrs-core"]
+xbox360 = []
+g29 = []
