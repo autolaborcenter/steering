@@ -12,17 +12,17 @@ mod xbox360;
 #[cfg(feature = "xbox360")]
 pub type Device = xbox360::XBox360;
 
-#[cfg(all(feature = "g29"))]
+#[cfg(all(unix, feature = "g29"))]
 mod g29;
 
-#[cfg(all(feature = "g29"))]
+#[cfg(all(unix, feature = "g29"))]
 pub type Device = g29::G29;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Status {
     pub level: i8,
-    pub x: f32,
-    pub y: f32,
+    pub rho: f32,
+    pub theta: f32,
 }
 
 pub trait Steering {

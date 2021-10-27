@@ -23,20 +23,20 @@ impl Steering for Hori {
                     self.1 = value;
                 }
                 #[cfg(unix)]
-                ButtonChanged(Axis::RightZ, value, _) => {
+                AxisChanged(Axis::RightZ, value, _) => {
                     self.1 = value;
                 }
 
                 _ => {}
             };
         }
-        let (y, x) = self.0.active.map_or((0.0, 0.0), |id| {
+        let (rho, theta) = self.0.active.map_or((0.0, 0.0), |id| {
             (self.1, self.0.gilrs.gamepad(id).value(Axis::LeftStickX))
         });
         Status {
             level: self.0.level,
-            x,
-            y,
+            rho,
+            theta,
         }
     }
 }

@@ -23,14 +23,14 @@ impl Steering for G29 {
                 }
             }
         }
-        let (y, x) = self.0.active.map_or((0.0, 0.0), |id| {
+        let (rho, theta) = self.0.active.map_or((0.0, 0.0), |id| {
             let gampad = self.0.gilrs.gamepad(id);
             (gampad.value(Axis::LeftZ), gampad.value(Axis::LeftStickX))
         });
         Status {
             level: self.0.level,
-            x,
-            y,
+            rho,
+            theta,
         }
     }
 }

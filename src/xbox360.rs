@@ -23,8 +23,8 @@ impl Steering for XBox360 {
             .map_or((0.0, 0.0), |id| map(&self.0.gilrs.gamepad(id)));
         Status {
             level: self.0.level,
-            x,
-            y,
+            rho: f32::max(x.abs(), y.abs()),
+            theta: x.atan2(y),
         }
     }
 }
