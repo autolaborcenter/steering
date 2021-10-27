@@ -22,9 +22,9 @@ impl Steering for XBox360 {
             .active
             .map_or((0.0, 0.0), |id| map(&self.0.gilrs.gamepad(id)));
         Status {
-            level: self.0.level,
+            level: y.signum() as i8 * self.0.level,
             rho: f32::max(x.abs(), y.abs()),
-            theta: x.atan2(y),
+            theta: x.atan2(y.abs()),
         }
     }
 }
@@ -41,23 +41,23 @@ fn map(gamepad: &Gamepad) -> (f32, f32) {
         gamepad.is_pressed(Button::DPadRight),
     );
     match buttons {
-        (true, _, true, false, _, _, _, _) => button(1, 1),
-        (true, _, false, true, _, _, _, _) => button(1, -1),
+        (true, _, true, false, _, _, _, _) => button(1, -1),
+        (true, _, false, true, _, _, _, _) => button(1, 1),
         (true, _, _, _, _, _, _, _) => button(1, 0),
-        (_, true, true, false, _, _, _, _) => button(-1, 1),
-        (_, true, false, true, _, _, _, _) => button(-1, -1),
+        (_, true, true, false, _, _, _, _) => button(-1, -1),
+        (_, true, false, true, _, _, _, _) => button(-1, 1),
         (_, true, _, _, _, _, _, _) => button(-1, 0),
-        (_, _, true, false, _, _, _, _) => button(0, 1),
-        (_, _, false, true, _, _, _, _) => button(0, -1),
+        (_, _, true, false, _, _, _, _) => button(0, -1),
+        (_, _, false, true, _, _, _, _) => button(0, 1),
         (_, _, true, true, _, _, _, _) => button(0, 0),
-        (_, _, _, _, true, _, true, false) => button(1, 1),
-        (_, _, _, _, true, _, false, true) => button(1, -1),
+        (_, _, _, _, true, _, true, false) => button(1, -1),
+        (_, _, _, _, true, _, false, true) => button(1, 1),
         (_, _, _, _, true, _, _, _) => button(1, 0),
-        (_, _, _, _, _, true, true, false) => button(-1, 1),
-        (_, _, _, _, _, true, false, true) => button(-1, -1),
+        (_, _, _, _, _, true, true, false) => button(-1, -1),
+        (_, _, _, _, _, true, false, true) => button(-1, 1),
         (_, _, _, _, _, true, _, _) => button(-1, 0),
-        (_, _, _, _, _, _, true, false) => button(0, 1),
-        (_, _, _, _, _, _, false, true) => button(0, -1),
+        (_, _, _, _, _, _, true, false) => button(0, -1),
+        (_, _, _, _, _, _, false, true) => button(0, 1),
         (_, _, _, _, _, _, true, true) => button(0, 0),
         _ => {
             let lx = gamepad.value(Axis::LeftStickY);
