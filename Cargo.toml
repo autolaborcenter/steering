@@ -10,6 +10,6 @@ gilrs = "*"
 nix = { version = "*", optional = true }
 
 [features]
-default = ["g29"]
+default = []
 xbox360 = []
 g29 = ["nix"]

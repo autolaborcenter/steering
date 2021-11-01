@@ -4,7 +4,7 @@ use nix::{
     fcntl::{self, OFlag},
     sys::stat::Mode,
 };
-use std::{fs, os::unix::prelude::RawFd};
+use std::{f32::consts::FRAC_PI_2, fs, os::unix::prelude::RawFd};
 
 pub struct G29 {
     context: Context,
@@ -54,7 +54,7 @@ impl Steering for G29 {
                 } else {
                     0.0
                 },
-                gampad.value(Axis::LeftStickX),
+                gampad.value(Axis::LeftStickX) * FRAC_PI_2,
             )
         });
         Status {
