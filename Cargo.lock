@@ -331,6 +331,7 @@ name = "steering"
 version = "0.1.0"
 dependencies = [
  "gilrs",
+ "nix",
 ]
 
 [[package]]

@@ -1,11 +1,5 @@
 use gilrs::{EventType, GamepadId, Gilrs};
 
-#[cfg(feature = "hori")]
-mod hori;
-
-#[cfg(feature = "hori")]
-pub type Device = hori::Hori;
-
 #[cfg(feature = "xbox360")]
 mod xbox360;
 
@@ -46,7 +40,7 @@ impl Context {
     }
 
     fn handle_events(&mut self) -> Option<EventType> {
-        while let Some(e) = self.gilrs.next_event() {
+        self.gilrs.next_event().map(|e| {
             use gilrs::ev::EventType::*;
 
             if e.event == Disconnected {
@@ -55,10 +49,9 @@ impl Context {
                 }
             } else {
                 self.active = Some(e.id);
-                return Some(e.event);
             }
-        }
-        return None;
+            e.event
+        })
     }
 
     fn gear_up(&mut self) {
@@ -81,16 +74,5 @@ impl Context {
             5 => 4,
             _ => self.level,
         };
-    }
-}
-
-#[test]
-fn try_it() {
-    use std::{thread, time::Duration};
-
-    let mut device = Device::new();
-    loop {
-        println!("{:?}", device.status());
-        thread::sleep(Duration::from_millis(50));
     }
 }

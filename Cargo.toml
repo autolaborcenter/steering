@@ -7,9 +7,9 @@ readme = "README.md"
 
 [dependencies]
 gilrs = "*"
+nix = { version = "*", optional = true }
 
 [features]
-default = ["hori"]
-hori = []
+default = ["g29"]
 xbox360 = []
-g29 = []
+g29 = ["nix"]
