@@ -6,7 +6,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 readme = "README.md"
 
 [dependencies]
-gilrs = "*"
+gilrs = { version = "*", default-features = false }
 nix = { version = "*", optional = true }
 
 [features]

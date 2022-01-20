@@ -17,9 +17,7 @@ mod default {
     use super::*;
 
     impl Steering for () {
-        fn new() -> Self {
-            ()
-        }
+        fn new() -> Self {}
 
         fn status(&mut self) -> Status {
             Status {
